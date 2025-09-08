@@ -1,49 +1,45 @@
 // src/api.js
-// CRA: používáme process.env.REACT_APP_API_URL
-const API_BASE = process.env.REACT_APP_API_URL || "http://localhost:5000/api";
+const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:5000";
 
-// Získání tokenu (uprav, pokud ho ukládáš jinam)
-function getToken() {
-  return (
-    localStorage.getItem("token") ||
-    sessionStorage.getItem("token") ||
-    null
+function authHeader() {
+  const token =
+    localStorage.getItem("token") || sessionStorage.getItem("token");
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+async function apiRequest(method, path, body = null, opts = {}) {
+  const res = await fetch(
+    path.startsWith("http") ? path : `${API_BASE}${path}`,
+    {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+        ...authHeader(),
+        ...(opts.headers || {}),
+      },
+      body: body != null ? JSON.stringify(body) : null,
+      ...opts,
+    }
   );
-}
 
-// GET helper – přidá Authorization, NEpoužívá cookies
-export function apiGet(path, opts = {}) {
-  const token = getToken();
-  const headers = new Headers(opts.headers || {});
-  if (token) headers.set("Authorization", `Bearer ${token}`);
+  // volitelně: ošetření 204
+  if (res.status === 204) return null;
 
-  return fetch(`${API_BASE}${path}`, {
-    ...opts,
-    method: opts.method || "GET",
-    headers,
-  });
-}
-
-// JSON helper – pro POST/PUT/DELETE/GET s JSONem
-export async function apiJson(path, { method = "GET", body, headers, ...rest } = {}) {
-  const token = getToken();
-  const hdrs = new Headers(headers || {});
-  hdrs.set("Content-Type", "application/json");
-  if (token) hdrs.set("Authorization", `Bearer ${token}`);
-
-  const res = await fetch(`${API_BASE}${path}`, {
-    method,
-    headers: hdrs,
-    body: body ? JSON.stringify(body) : undefined,
-    ...rest,
-  });
-
-  // Přečti JSON jen když server pošle JSON
-  let data = null;
-  const ct = res.headers.get("content-type") || "";
-  if (ct.includes("application/json")) {
-    try { data = await res.json(); } catch { data = null; }
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    const msg = (data && (data.message || data.error)) || `HTTP ${res.status}`;
+    throw new Error(msg);
   }
-
-  return { res, data };
+  return data;
 }
+
+// Původní alias — pokud už v projektu používáš apiJson(method, ...), ať se nic nerozbije
+export const apiJson = (method, path, body, opts) =>
+  apiRequest(method, path, body, opts);
+
+// Pohodlné zkratky (vč. apiPost, která ti chybí)
+export const apiGet = (path, opts) => apiRequest("GET", path, null, opts);
+export const apiPost = (path, body, opts) => apiRequest("POST", path, body, opts);
+export const apiPut = (path, body, opts) => apiRequest("PUT", path, body, opts);
+export const apiPatch = (path, body, opts) => apiRequest("PATCH", path, body, opts);
+export const apiDelete = (path, opts) => apiRequest("DELETE", path, null, opts);

@@ -16,7 +16,7 @@ const userRoutes = require("./routes/userRoutes");
 
 // ⬇️ NOVÉ: router pro úkoly + chat
 const tasksRoutes = require("./routes/tasks.routes");
-const chatRoutes = require("./routes/chat");
+const chatRoutes = require("./routes/chat.routes");
 
 // ⬇️ NOVÉ: Socket.IO inicializátor
 const { initSocket } = require("./socket");
@@ -66,11 +66,12 @@ app.use("/api/reports", reportsRoutes);
 app.use("/api/pharmacy", pharmacyRoutes);
 app.use("/api/users", userRoutes);
 
-// ⬇️ NOVÉ: Úkoly (to-do pro pobočky)
+// Podpora /api i /api/v1, aby se nepotkaly prefixy
 app.use("/api/tasks", tasksRoutes);
+app.use("/api/v1/tasks", tasksRoutes);
 
-// ⬇️ NOVÉ: Chat (historie zpráv)
 app.use("/api/chat", chatRoutes);
+app.use("/api/v1/chat", chatRoutes);
 
 // --- Start serveru po připojení k DB ---
 if (!process.env.MONGO_URI) {

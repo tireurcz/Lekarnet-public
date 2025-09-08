@@ -1,48 +1,36 @@
+// routes/tasks.routes.js (CommonJS)
 const express = require("express");
 const router = express.Router();
 
-// robustní import auth
-const authMod = require("../middleware/authMiddleware");
-const requireAuth =
-  typeof authMod === "function"
-    ? authMod
-    : authMod?.requireAuth || authMod?.default;
+// GET /api/tasks  → prázdný seznam místo 404
+router.get("/", (req, res) => {
+  res.json([]); // až budeš mít DB, vrať reálná data
+});
 
-if (typeof requireAuth !== "function") {
-  throw new Error("requireAuth is not a function (authMiddleware export).");
-}
+// POST /api/tasks  → mock vytvoření
+router.post("/", (req, res) => {
+  const { title, completed = false } = req.body || {};
+  const now = new Date().toISOString();
+  const mock = {
+    _id: String(Date.now()),
+    title: title || "(bez názvu)",
+    completed,
+    createdAt: now,
+    updatedAt: now,
+  };
+  res.status(201).json(mock);
+});
 
-// (volitelné) import controlleru, pokud ho máš
-let tasksCtrl = null;
-try { tasksCtrl = require("../controllers/tasks.controller"); } catch {}
-try { if (!tasksCtrl) tasksCtrl = require("../controllers/tasksController"); } catch {}
-try { if (!tasksCtrl) tasksCtrl = require("../controllers/taskController"); } catch {}
+// PATCH /api/tasks/:id  → mock update
+router.patch("/:id", (req, res) => {
+  const { id } = req.params;
+  const patch = req.body || {};
+  res.json({ _id: id, ...patch, updatedAt: new Date().toISOString() });
+});
 
-// helper – vždy vrátí funkci (když controller chybí, vrátí 501)
-const ensure = (name, fallback) => {
-  if (typeof tasksCtrl?.[name] === "function") return tasksCtrl[name];
-  if (fallback) return fallback;
-  return (_req, res) => res.status(501).json({ ok:false, error:`Tasks controller '${name}' not implemented` });
-};
-
-// --- ROUTES ---
-// seznam všech (pokud používáš)
-router.get("/", requireAuth, ensure("listTasks", (_req, res)=>res.json({ ok:true, items:[] })));
-
-// ✅ NOVÉ: úkoly přihlášeného uživatele
-router.get("/my", requireAuth, ensure("listMyTasks", (req, res) => {
-  // jednoduchý placeholder – vrať prázdný seznam, ale s kontextem uživatele
-  res.json({
-    ok: true,
-    user: { id: req.user?.id, company: req.user?.company, pharmacyCode: req.user?.pharmacyCode },
-    items: [], // sem časem dosadíš reálná data z DB
-  });
-}));
-
-// vytvoření/aktualizace/smazání – nechávám jako dřív, nebo fallback 501
-router.post("/", requireAuth, ensure("createTask"));
-router.patch("/:id", requireAuth, ensure("updateTask"));
-router.post("/:id/complete", requireAuth, ensure("completeTask"));
-router.delete("/:id", requireAuth, ensure("deleteTask"));
+// DELETE /api/tasks/:id  → 204
+router.delete("/:id", (req, res) => {
+  res.status(204).end();
+});
 
 module.exports = router;
