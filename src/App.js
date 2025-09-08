@@ -16,9 +16,6 @@ import AdminUsersPage from "./pages/AdminUsersPage";
 import UserTasksPage from "./pages/UserTasksPage";
 import AdminTasksPage from "./pages/AdminTasksPage";
 
-// Chat
-import ChatPage from "./pages/ChatPage";
-
 // DVA layouty
 import { UserDashboardLayout, AdminDashboardLayout } from "./components/DashboardLayout";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
@@ -131,19 +128,6 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-
-          {/* Chat – firemní/pobočkový */}
-          <Route
-              path="/chat"
-              element={
-                <ProtectedRoute roles={["user", "admin"]}>
-                  <RoleLayout>
-                    <ChatPage />
-                  </RoleLayout>
-                </ProtectedRoute>
-            }
-          />
-
 
           {/* Profil – obě role */}
           <Route

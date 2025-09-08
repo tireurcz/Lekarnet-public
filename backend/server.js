@@ -1,7 +1,6 @@
 // backend/server.js (nebo app.js)
 require("dotenv").config();
 
-const http = require("http"); // ⬅️ NOVÉ: pro Socket.IO
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
@@ -14,12 +13,8 @@ const reportsRoutes = require("./routes/reports");
 const pharmacyRoutes = require("./routes/pharmacy");
 const userRoutes = require("./routes/userRoutes");
 
-// ⬇️ NOVÉ: router pro úkoly + chat
+// ⬇️ NOVÉ: router pro úkoly
 const tasksRoutes = require("./routes/tasks.routes");
-const chatRoutes = require("./routes/chat.routes");
-
-// ⬇️ NOVÉ: Socket.IO inicializátor
-const { initSocket } = require("./socket");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -66,12 +61,8 @@ app.use("/api/reports", reportsRoutes);
 app.use("/api/pharmacy", pharmacyRoutes);
 app.use("/api/users", userRoutes);
 
-// Podpora /api i /api/v1, aby se nepotkaly prefixy
+// ⬇️ NOVÉ: Úkoly (to-do pro pobočky)
 app.use("/api/tasks", tasksRoutes);
-app.use("/api/v1/tasks", tasksRoutes);
-
-app.use("/api/chat", chatRoutes);
-app.use("/api/v1/chat", chatRoutes);
 
 // --- Start serveru po připojení k DB ---
 if (!process.env.MONGO_URI) {
@@ -83,13 +74,8 @@ mongoose
   .connect(process.env.MONGO_URI)
   .then(() => {
     console.log(`✅ MongoDB connected: ${mongoose.connection.host}`);
-
-    // ⬇️ NOVÉ: vytvoř HTTP server a předej ho Socket.IO
-    const server = http.createServer(app);
-    initSocket(server); // inicializuj socket.io (ověření JWT, roomy, eventy)
-
-    server.listen(PORT, () => {
-      console.log(`✅ API + Socket.IO běží na http://localhost:${PORT}`);
+    app.listen(PORT, () => {
+      console.log(`✅ API running on http://localhost:${PORT}`);
     });
   })
   .catch((err) => {

@@ -2,12 +2,22 @@
 import React from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
-  Home, Settings, LogOut, Users, Search, Bell, FileText, Boxes,
-  User as UserIcon, CheckSquare
+  Home,
+  Settings,
+  LogOut,
+  Users,
+  Search,
+  Bell,
+  FileText,
+  Boxes,
+  User as UserIcon,
+  CheckSquare,
 } from "lucide-react";
+
+// ⬇️ NOVÉ: badge pro úkoly
 import TasksBadge from "./TasksBadge";
 
-/* ---------- Topbar ---------- */
+/* ---------- společné drobnosti ---------- */
 const Topbar = ({ roleLabel = "Uživatel" }) => (
   <div className="sticky top-0 z-10 -mx-8 mb-6 px-8 py-4 bg-gradient-to-r from-white/80 via-white/60 to-white/80 backdrop-blur-md border-b border-blue-100 flex items-center gap-4">
     <h1 className="text-2xl md:text-3xl font-black text-blue-900">Přehled</h1>
@@ -28,7 +38,6 @@ const Topbar = ({ roleLabel = "Uživatel" }) => (
   </div>
 );
 
-/* ---------- Sidebar item ---------- */
 function NavItem({ to, icon: Icon, label, rightSlot = null }) {
   const { pathname } = useLocation();
   const active = pathname.startsWith(to);
@@ -40,13 +49,13 @@ function NavItem({ to, icon: Icon, label, rightSlot = null }) {
     >
       <Icon size={20} className="opacity-90" />
       <span className="font-medium">{label}</span>
+      {/* ⬇️ NOVÉ: místo pro badge/pravý slot */}
       {rightSlot && <span className="ml-auto">{rightSlot}</span>}
       {active && !rightSlot && <span className="ml-auto h-6 w-6 rounded-lg bg-white/10 backdrop-blur-sm" />}
     </Link>
   );
 }
 
-/* ---------- Sidebar frame ---------- */
 function SidebarFrame({ children }) {
   const navigate = useNavigate();
   const handleLogout = () => {
@@ -64,6 +73,7 @@ function SidebarFrame({ children }) {
       <h2 className="relative text-2xl font-extrabold tracking-tight mb-10">Lékárnet</h2>
       <nav className="relative space-y-2">
         {children}
+
         <button
           type="button"
           onClick={handleLogout}
@@ -85,8 +95,13 @@ export function UserDashboardLayout({ children }) {
     <div className="flex h-screen bg-[radial-gradient(ellipse_at_top_left,rgba(59,130,246,0.08),transparent_45%),radial-gradient(ellipse_at_bottom_right,rgba(99,102,241,0.08),transparent_45%)]">
       <SidebarFrame>
         <NavItem to="/user/dashboard" icon={Home} label="Dashboard" />
-        <NavItem to="/tasks" icon={CheckSquare} label="Úkoly" rightSlot={<TasksBadge />} />
-        <NavItem to="/chat" icon={CheckSquare} label="Chat" />
+        {/* ⬇️ NOVÉ: Úkoly s badge */}
+        <NavItem
+          to="/tasks"
+          icon={CheckSquare}
+          label="Úkoly"
+          rightSlot={<TasksBadge />}
+        />
         <NavItem to="/pharmacy/report" icon={FileText} label="Report pro lékárny (PDF)" />
         <NavItem to="/pharmacy/inventory" icon={Boxes} label="Sklad / návrhy přesunu" />
 
@@ -98,7 +113,7 @@ export function UserDashboardLayout({ children }) {
 
       <main className="flex-1 bg-gradient-to-b from-blue-50 to-white p-8 overflow-y-auto">
         <Topbar roleLabel="Uživatel" />
-        <div className="mt-8" data-slot="user-dashboard-children">{children}</div>
+        <div className="mt-8">{children}</div>
       </main>
     </div>
   );
@@ -110,8 +125,13 @@ export function AdminDashboardLayout({ children }) {
     <div className="flex h-screen bg-[radial-gradient(ellipse_at_top_left,rgba(59,130,246,0.08),transparent_45%),radial-gradient(ellipse_at_bottom_right,rgba(99,102,241,0.08),transparent_45%)]">
       <SidebarFrame>
         <NavItem to="/admin/dashboard" icon={Home} label="Přehled (admin)" />
-        <NavItem to="/admin/tasks" icon={CheckSquare} label="Úkoly (správa)" rightSlot={<TasksBadge />} />
-        <NavItem to="/chat" icon={CheckSquare} label="Chat" />
+        {/* ⬇️ NOVÉ: Úkoly (správa) s badge – stejný count je v pohodě, sdílí kontext */}
+        <NavItem
+          to="/admin/tasks"
+          icon={CheckSquare}
+          label="Úkoly (správa)"
+          rightSlot={<TasksBadge />}
+        />
         <NavItem to="/pharmacy/report" icon={FileText} label="Report pro lékárny (PDF)" />
         <NavItem to="/pharmacy/inventory" icon={Boxes} label="Sklad / návrhy přesunu" />
 
@@ -125,10 +145,10 @@ export function AdminDashboardLayout({ children }) {
 
       <main className="flex-1 bg-gradient-to-b from-blue-50 to-white p-8 overflow-y-auto">
         <Topbar roleLabel="Admin" />
-        <div className="mt-8" data-slot="admin-dashboard-children">{children}</div>
+        <div className="mt-8">{children}</div>
       </main>
     </div>
   );
 }
 
-export default AdminDashboardLayout;
+export default AdminDashboardLayout; // volitelně, kdyby někde očekával "default"
