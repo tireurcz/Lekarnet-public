@@ -7,29 +7,29 @@ export function useSocket(token) {
 
   const socket = useMemo(() => {
     if (!token) return null;
-
-    // Přímé připojení na backend (5000)
-    return io("http://localhost:5000", {
+    const s = io("http://localhost:5000", {
       path: "/socket.io",
-      auth: { token },          // JWT token
-      transports: ["websocket"],// čistě WS, případně můžeš vypustit pro fallback na polling
+      auth: { token },
+      transports: ["websocket"],
       withCredentials: true,
       reconnection: true,
     });
+    return s;
   }, [token]);
 
   useEffect(() => {
     if (!socket) return;
-
-    socket.connect();
     socketRef.current = socket;
 
+    const onConnect = () => console.log("[SOCKET] connected, id:", socket.id);
+    const onError = (err) => console.error("[SOCKET] connect_error:", err?.message || err);
+    socket.on("connect", onConnect);
+    socket.on("connect_error", onError);
+
     return () => {
-      try {
-        socket.disconnect();
-      } catch (e) {
-        console.error("Socket disconnect error:", e);
-      }
+      socket.off("connect", onConnect);
+      socket.off("connect_error", onError);
+      try { socket.disconnect(); } catch {}
     };
   }, [socket]);
 

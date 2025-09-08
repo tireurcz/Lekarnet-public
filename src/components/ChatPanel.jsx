@@ -1,8 +1,8 @@
+// src/components/ChatPanel.jsx
 import { useEffect, useMemo, useRef, useState } from "react";
-import { apiGet } from "../api"; // tvoje api helpery
+import { apiGet } from "../api";
 import { useSocket } from "../hooks/useSocket";
 
-// vytáhne payload z JWT (z tvého kódu)
 function getUserFromToken() {
   const token =
     localStorage.getItem("token") || sessionStorage.getItem("token") || null;
@@ -28,13 +28,31 @@ export default function ChatPanel() {
   const [scope, setScope] = useState("company"); // "company" | "pharmacy"
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState(null);
 
   const canPharmacy = !!me?.pharmacyCode;
 
-  // Načtení historie
   async function loadHistory(sc) {
-    const { ok, items } = await apiGet(`/chat/history?scope=${sc}&limit=100`);
-    if (ok !== false) setMessages(items || []);
+    setLoading(true);
+    setLoadError(null);
+    const url = `/chat/history?scope=${sc}&limit=100`; // api helper přidá /api
+    try {
+      const res = await apiGet(url);
+      console.log("[CHAT] history GET", url, "→", res.status, res.ok, res.error);
+      if (res.ok) {
+        setMessages(res.items || []);
+      } else {
+        setMessages([]);
+        setLoadError(res.error || `HTTP ${res.status}`);
+      }
+    } catch (e) {
+      console.error("[CHAT] history error", e);
+      setLoadError(String(e));
+      setMessages([]);
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -42,38 +60,48 @@ export default function ChatPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scope]);
 
-  // Příjem live zpráv
   useEffect(() => {
     if (!socket) return;
+    const onConnect = () => console.log("[CHAT] socket connected");
+    const onDisconnect = (reason) => console.warn("[CHAT] socket disconnected:", reason);
+    const onError = (err) => console.error("[CHAT] socket error:", err?.message || err);
+    socket.on("connect", onConnect);
+    socket.on("disconnect", onDisconnect);
+    socket.on("connect_error", onError);
+
     const onMsg = (msg) => {
-      // filtruj jen zprávy odpovídající scope
       if (msg.scope !== scope) return;
-      // company zprávy vždy; pharmacy jen když mám stejný pharmacyCode
       if (scope === "pharmacy") {
-        if (String(msg.pharmacyCode || "") !== String(me?.pharmacyCode || "")) {
-          return;
-        }
+        if (String(msg.pharmacyCode || "") !== String(me?.pharmacyCode || "")) return;
       }
       setMessages((m) => [...m, msg]);
     };
     socket.on("chat:message", onMsg);
-    return () => socket.off("chat:message", onMsg);
+
+    return () => {
+      socket.off("connect", onConnect);
+      socket.off("disconnect", onDisconnect);
+      socket.off("connect_error", onError);
+      socket.off("chat:message", onMsg);
+    };
   }, [socket, scope, me?.pharmacyCode]);
 
-  // Odeslání zprávy
   const send = () => {
-    const t = text.trim();
+    const t = (text || "").trim();
     if (!t || !socket) return;
-    socket.emit("chat:message", { scope, text: t }, (res) => {
-      if (res?.ok) {
-        setText("");
-        // zpráva už přijde přes broadcast, ale pro jistotu ji můžeme přidat okamžitě
-        // setMessages((prev) => [...prev, res.message]);
-      }
+    if (!socket.connected) {
+      console.warn("[CHAT] send blocked: socket not connected");
+      return;
+    }
+    console.log("[CHAT] emitting chat:message", { scope, text: t });
+    socket.emit("chat:message", { scope, text: t }, (ack) => {
+      console.log("[CHAT] ack:", ack);
+      if (ack?.ok) setText("");
     });
   };
 
-  // UI
+  const disabled = !text.trim() || !socket || !socket.connected;
+
   return (
     <div className="w-full h-full max-h-[600px] flex flex-col border rounded-2xl p-3 gap-3">
       <div className="flex items-center gap-2">
@@ -91,10 +119,18 @@ export default function ChatPanel() {
           Pobočkový chat {canPharmacy ? `(kód ${me?.pharmacyCode})` : ""}
         </button>
         <div className="ml-auto text-sm text-gray-500">
-          Přihlášen: <b>{me?.name || "Uživatel"}</b> • Firma: <b>{me?.company}</b>
+          Přihlášen: <b>{me?.name || "Uživatel"}</b> • Firma: <b>{me?.company || "?"}</b>
           {canPharmacy ? <> • Kód: <b>{me?.pharmacyCode}</b></> : null}
         </div>
       </div>
+
+      {loading ? (
+        <div className="text-sm text-gray-500">Načítám historii…</div>
+      ) : loadError ? (
+        <div className="text-sm text-red-600">
+          Nepodařilo se načíst historii: {String(loadError)}
+        </div>
+      ) : null}
 
       <div className="flex-1 overflow-y-auto border rounded-xl p-3 bg-white">
         {messages.length === 0 ? (
@@ -109,7 +145,7 @@ export default function ChatPanel() {
                   <> • pobočka {m.pharmacyCode}</>
                 ) : null}
               </div>
-              <div className="text-sm">{m.text}</div>
+              <div className="text-sm whitespace-pre-wrap">{m.text}</div>
             </div>
           ))
         )}
@@ -120,10 +156,10 @@ export default function ChatPanel() {
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e)=>{ if(e.key==="Enter") send(); }}
-          placeholder="Napiš zprávu…"
+          placeholder={socket?.connected ? "Napiš zprávu…" : "Čekám na připojení socketu…"}
           className="flex-1 border rounded-xl px-3 py-2"
         />
-        <button onClick={send} className="px-4 py-2 rounded-xl border">
+        <button onClick={send} disabled={disabled} className={`px-4 py-2 rounded-xl border ${disabled ? "opacity-50" : ""}`}>
           Odeslat
         </button>
       </div>

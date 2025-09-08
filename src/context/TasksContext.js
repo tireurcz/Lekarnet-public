@@ -1,79 +1,160 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { apiGet } from "../api";
+// src/context/TasksContext.jsx
+import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { apiGet, apiPost } from "../api";
 
-// stejně jako v UserTasksPage
-function getUserFromToken() {
-  const token = localStorage.getItem("token") || sessionStorage.getItem("token") || null;
-  if (!token) return null;
-  const parts = token.split(".");
-  if (parts.length !== 3) return null;
-  try {
-    const json = atob(parts[1].replace(/-/g, "+").replace(/_/g, "/"));
-    const payload = JSON.parse(json);
-    return payload?.user || payload || null;
-  } catch { return null; }
+function parseDate(d) {
+  if (!d) return null;
+  const t = typeof d === "string" ? Date.parse(d) : +d;
+  return Number.isFinite(t) ? new Date(t) : null;
+}
+function isOverdue(task) {
+  const due = parseDate(task?.dueAt || task?.dueDate);
+  if (!due) return false;
+  return !task?.completed && due.getTime() < Date.now();
+}
+function byIdMap(list) {
+  const m = new Map();
+  (list || []).forEach((t) => m.set(String(t._id || t.id), t));
+  return m;
 }
 
 const TasksContext = createContext(null);
+export const useTasks = () => useContext(TasksContext);
 
-export function TasksProvider({ children }) {
-  const me = getUserFromToken();
-  const myPharmacyCode = me?.pharmacyCode != null ? String(me.pharmacyCode) : null;
-
+export function TasksProvider({ user, children }) {
   const [tasks, setTasks] = useState([]);
+  const [byId, setById] = useState(() => new Map());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const fetchTasks = useCallback(async () => {
+  async function loadMyTasks() {
+    setLoading(true);
+    setError(null);
     try {
-      setLoading(true);
-      setError(null);
-      const res = await apiGet("/tasks/my");          // ⬅️ používá token
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      setTasks(Array.isArray(data) ? data : []);
+      const res = await apiGet("/tasks/my"); // helper přidá /api a token
+      console.log("[TASKS] GET /tasks/my →", res.status, res.ok, res.error);
+      if (res.ok && Array.isArray(res.items)) {
+        setTasks(res.items);
+        setById(byIdMap(res.items));
+      } else {
+        setTasks([]);
+        setById(new Map());
+      }
     } catch (e) {
-      setError(e);
+      console.error("[TASKS] loadMyTasks error:", e);
+      setError(String(e));
       setTasks([]);
+      setById(new Map());
     } finally {
       setLoading(false);
     }
-  }, []);
+  }
 
-  useEffect(() => { fetchTasks(); }, [fetchTasks]);
+  useEffect(() => {
+    loadMyTasks();
+  }, [user?.id]);
 
-  const myKeyFor = (t) => myPharmacyCode || (t.pharmacyCodes?.[0] || "");
-  const isDone   = (t) => !!t?.completions?.[myKeyFor(t)]?.done;
+  async function addTask(payload) {
+    const res = await apiPost("/tasks", payload);
+    if (!res.ok || !res.item) {
+      throw new Error(res.error || "Nepodařilo se vytvořit úkol");
+    }
+    const next = [...tasks, res.item];
+    setTasks(next);
+    setById(byIdMap(next));
+    return res.item;
+  }
 
-  const todayKey = new Date().toISOString().slice(0,10);
-  const ts = (x) => {
-    const t = x?.dueDate ? new Date(x.dueDate).getTime() : Infinity;
-    return Number.isFinite(t) ? t : Infinity;
-  };
+  async function updateTask(id, patch) {
+    const _id = String(id);
+    const prev = byId.get(_id);
+    if (!prev) return null;
 
-  const computed = useMemo(() => {
-    const openTasks   = tasks.filter((t) => !isDone(t));
-    const todayTasks  = openTasks.filter((t) => (t.dueDate || "").slice(0,10) === todayKey);
-    const upcoming    = openTasks.filter((t) => (t.dueDate || "").slice(0,10) !== todayKey).sort((a,b)=>ts(a)-ts(b));
-    const nextDueTask = [...openTasks].map(t => ({...t, _ts: ts(t)})).sort((a,b)=>a._ts-b._ts)[0];
-    return {
-      openTasks,
-      todayTasks,
-      upcoming,
-      badgeCount: openTasks.length,                   // 👈 počet otevřených
-      nextDueTask: nextDueTask && nextDueTask._ts !== Infinity ? nextDueTask : null,
-    };
-  }, [tasks, todayKey]); // eslint-disable-line
+    const optimistic = { ...prev, ...patch };
+    const nextList = tasks.map((t) => (String(t._id || t.id) === _id ? optimistic : t));
+    setTasks(nextList);
+    setById(byIdMap(nextList));
 
-  return (
-    <TasksContext.Provider value={{ tasks, setTasks, loading, error, refresh: fetchTasks, ...computed }}>
-      {children}
-    </TasksContext.Provider>
+    const res = await apiPost(`/tasks/${_id}?_method=PATCH`, patch);
+    if (!res.ok || !res.item) {
+      // revert
+      const reverted = tasks.map((t) => (String(t._id || t.id) === _id ? prev : t));
+      setTasks(reverted);
+      setById(byIdMap(reverted));
+      throw new Error(res.error || "Nepodařilo se upravit úkol");
+    }
+    const fixed = tasks.map((t) => (String(t._id || t.id) === _id ? res.item : t));
+    setTasks(fixed);
+    setById(byIdMap(fixed));
+    return res.item;
+  }
+
+  async function completeTask(id, completed = true) {
+    const _id = String(id);
+    const prev = byId.get(_id);
+    if (!prev) return null;
+
+    const optimistic = { ...prev, completed: !!completed };
+    const tmp = tasks.map((t) => (String(t._id || t.id) === _id ? optimistic : t));
+    setTasks(tmp);
+    setById(byIdMap(tmp));
+
+    const res = await apiPost(`/tasks/${_id}/complete`, { completed: !!completed });
+    if (!res.ok || !res.item) {
+      // revert
+      const reverted = tasks.map((t) => (String(t._id || t.id) === _id ? prev : t));
+      setTasks(reverted);
+      setById(byIdMap(reverted));
+      throw new Error(res.error || "Nepodařilo se změnit stav úkolu");
+    }
+    const fixed = tasks.map((t) => (String(t._id || t.id) === _id ? res.item : t));
+    setTasks(fixed);
+    setById(byIdMap(fixed));
+    return res.item;
+  }
+
+  async function deleteTask(id) {
+    const _id = String(id);
+    const prev = byId.get(_id);
+    if (!prev) return false;
+
+    const kept = tasks.filter((t) => String(t._id || t.id) !== _id);
+    setTasks(kept);
+    setById(byIdMap(kept));
+
+    const res = await apiPost(`/tasks/${_id}?_method=DELETE`, {});
+    if (!res.ok) {
+      // revert
+      const reverted = [...kept, prev];
+      setTasks(reverted);
+      setById(byIdMap(reverted));
+      throw new Error(res.error || "Nepodařilo se smazat úkol");
+    }
+    return true;
+  }
+
+  const stats = useMemo(() => {
+    const total = tasks.length;
+    const open = tasks.filter((t) => !t.completed).length;
+    const overdue = tasks.filter((t) => isOverdue(t)).length;
+    return { total, open, overdue };
+  }, [tasks]);
+
+  const value = useMemo(
+    () => ({
+      tasks,
+      byId,
+      loading,
+      error,
+      stats,
+      reloadTasks: loadMyTasks,
+      addTask,
+      updateTask,
+      completeTask,
+      deleteTask,
+    }),
+    [tasks, byId, loading, error, stats]
   );
-}
 
-export function useTasks(){ 
-  const ctx = useContext(TasksContext);
-  if (!ctx) throw new Error("useTasks must be used within <TasksProvider>");
-  return ctx;
+  return <TasksContext.Provider value={value}>{children}</TasksContext.Provider>;
 }

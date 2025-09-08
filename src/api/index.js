@@ -1,41 +1,52 @@
 // src/api/index.js
 
-// Pomocná funkce pro získání tokenu
 function getToken() {
-  return localStorage.getItem("token") || sessionStorage.getItem("token") || null;
+  return (
+    localStorage.getItem("token") ||
+    sessionStorage.getItem("token") ||
+    null
+  );
 }
 
-// GET request
-export async function apiGet(url) {
+function buildUrl(url) {
+  if (/^https?:\/\//i.test(url)) return url;      // absolutní URL
+  if (url.startsWith("/api/")) return url;        // už má /api
+  if (url.startsWith("/")) return `/api${url}`;   // relativní s lomítkem
+  return `/api/${url}`;                           // relativní bez lomítka
+}
+
+export async function apiJson(url, { method = "GET", body, headers } = {}) {
   const token = getToken();
-  const fullUrl = url.startsWith("/api") ? url : `/api${url}`;
+  const fullUrl = buildUrl(url);
 
   const res = await fetch(fullUrl, {
-    method: "GET",
+    method,
     headers: {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(headers || {}),
     },
+    body: body != null ? JSON.stringify(body) : undefined,
   });
 
-  const data = await res.json().catch(() => ({}));
+  let data = {};
+  try {
+    data = await res.json();
+  } catch {
+    // 204 apod. – bez těla
+  }
   return { status: res.status, ok: res.ok, ...data };
 }
 
-// POST request
-export async function apiPost(url, body) {
-  const token = getToken();
-  const fullUrl = url.startsWith("/api") ? url : `/api${url}`;
-
-  const res = await fetch(fullUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify(body || {}),
-  });
-
-  const data = await res.json().catch(() => ({}));
-  return { status: res.status, ok: res.ok, ...data };
+export function apiGet(url) {
+  return apiJson(url, { method: "GET" });
+}
+export function apiPost(url, body) {
+  return apiJson(url, { method: "POST", body });
+}
+export function apiPatch(url, body) {
+  return apiJson(url, { method: "PATCH", body });
+}
+export function apiDelete(url, body) {
+  return apiJson(url, { method: "DELETE", body });
 }
