@@ -1,7 +1,7 @@
 // src/pages/AdminTasksPage.jsx
 import { useEffect, useMemo, useState } from "react";
 import { apiGet, apiJson } from "../api";
-import { useTasks } from "../context/TasksContext"; // ⬅️ kvůli refresh badge/kontextu
+import { useTasks } from "../context/TasksContext";
 
 function Banner({ type = "info", children, onClose }) {
   const base =
@@ -45,29 +45,20 @@ export default function AdminTasksPage() {
   const [tasks, setTasks] = useState([]);
   const [q, setQ] = useState("");
   const [pharmacyCode, setPharmacyCode] = useState("");
-  const [statusFilter, setStatusFilter] = useState("open"); // all | open | archived
+  const [statusFilter, setStatusFilter] = useState("open");
   const [open, setOpen] = useState(false);
 
-  // form state
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [codesCsv, setCodesCsv] = useState("");
 
-  // UI stav
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [banner, setBanner] = useState(null); // {type, msg}
+  const [banner, setBanner] = useState(null);
   const [modalError, setModalError] = useState("");
 
-  // ⬇️ Tasks kontext (může být null, kdyby stránka běžela mimo provider)
-  const tasksCtx = (() => {
-    try {
-      return useTasks();
-    } catch {
-      return null;
-    }
-  })();
+  const tasksCtx = useTasks();
 
   const fetchTasks = async () => {
     try {
@@ -91,7 +82,6 @@ export default function AdminTasksPage() {
 
       const data = await res.json().catch(() => []);
       setTasks(Array.isArray(data) ? data : []);
-      // po načtení (např. změna filtru) zkus také refreshnout badge
       tasksCtx?.refresh?.();
     } catch (e) {
       console.error("fetchTasks error:", e);
@@ -101,8 +91,8 @@ export default function AdminTasksPage() {
     }
   };
 
-  useEffect(() => { fetchTasks(); /* eslint-disable-next-line */ }, []);
-  useEffect(() => { fetchTasks(); /* eslint-disable-next-line */ }, [statusFilter]);
+  useEffect(() => { fetchTasks(); }, []);
+  useEffect(() => { fetchTasks(); }, [statusFilter]);
 
   const fmtDate = (d) => {
     if (!d) return "Bez termínu";
@@ -149,10 +139,10 @@ export default function AdminTasksPage() {
       setOpen(false);
       setTitle(""); setDescription(""); setDueDate(""); setCodesCsv("");
       setQ(""); setPharmacyCode("");
-      setStatusFilter("open"); // po vytvoření ukaž default
+      setStatusFilter("open");
       setBanner({ type: "success", msg: "Úkol byl vytvořen." });
       await fetchTasks();
-      tasksCtx?.refresh?.(); // ⬅️ přepočítej badge
+      tasksCtx?.refresh?.();
     } catch (e) {
       console.error("createTask error:", e);
       setModalError(e.message || "Úkol se nepodařilo vytvořit.");
@@ -170,14 +160,13 @@ export default function AdminTasksPage() {
       }
       setBanner({ type: "success", msg: "Úkol byl archivován." });
       await fetchTasks();
-      tasksCtx?.refresh?.(); // ⬅️ přepočítej badge
+      tasksCtx?.refresh?.();
     } catch (e) {
       console.error("archive error:", e);
       setBanner({ type: "error", msg: `Archivace selhala: ${e.message}` });
     }
   };
 
-  // seřazení: nejbližší termín nahoru (bez termínu až nakonec)
   const sortedTasks = useMemo(() => {
     const ts = (x) => {
       const t = x?.dueDate ? new Date(x.dueDate).getTime() : Infinity;
@@ -204,19 +193,14 @@ export default function AdminTasksPage() {
         </button>
       </div>
 
-      {/* rychlé filtry stavu */}
       <div className="flex gap-2">
-        {[
-          { key: "all", label: "Vše" },
-          { key: "open", label: "Otevřené" },
-          { key: "archived", label: "Archivované" },
-        ].map(({ key, label }) => (
+        {["all", "open", "archived"].map((key) => (
           <button
             key={key}
             onClick={() => setStatusFilter(key)}
             className={`px-3 py-1.5 rounded-lg border ${statusFilter === key ? "bg-gray-900 text-white" : "hover:bg-gray-50"}`}
           >
-            {label}
+            {key === "all" ? "Vše" : key === "open" ? "Otevřené" : "Archivované"}
           </button>
         ))}
       </div>
@@ -251,8 +235,7 @@ export default function AdminTasksPage() {
                 <div className="font-medium">{t.title}</div>
                 {t.description ? <div className="text-sm opacity-80">{t.description}</div> : null}
                 <div className="text-xs mt-1">
-                  {t.dueDate ? `Termín: ${fmtDate(t.dueDate)}` : "Bez termínu"} · Cíl:{" "}
-                  {(t.pharmacyCodes || []).join(", ") || "—"} · Stav: {t.status}
+                  {t.dueDate ? `Termín: ${fmtDate(t.dueDate)}` : "Bez termínu"} · Cíl: {(t.pharmacyCodes || []).join(", ") || "—"} · Stav: {t.status}
                 </div>
               </div>
               <div className="flex-shrink-0">
@@ -275,9 +258,7 @@ export default function AdminTasksPage() {
                 <ul className="list-disc ml-5">
                   {Object.entries(t.completions).map(([key, val]) => (
                     <li key={key}>
-                      {key}: {val?.done
-                        ? `splněno ${val?.doneAt ? new Date(val.doneAt).toLocaleString("cs-CZ") : ""}`
-                        : "nesplněno"}
+                      {key}: {val?.done ? `splněno ${val?.doneAt ? new Date(val.doneAt).toLocaleString("cs-CZ") : ""}` : "nesplněno"}
                     </li>
                   ))}
                 </ul>

@@ -11,6 +11,7 @@ import PharmacyReportPage from "./pages/PharmacyReportPage";
 import PharmacyInventoryPage from "./pages/PharmacyInventoryPage";
 import ProfilePage from "./pages/ProfilePage";
 import AdminUsersPage from "./pages/AdminUsersPage";
+import UploadPage from "./pages/UpLoadPage";
 
 // Úkoly
 import UserTasksPage from "./pages/UserTasksPage";
@@ -49,8 +50,6 @@ export default function App() {
 
   return (
     <Router>
-      {/* ⬇️ Obalíme celé routování do TasksProvideru,
-          aby badge + widget měly data všude (v obou layoutech). */}
       <TasksProvider user={user}>
         <Routes>
           {/* Veřejné */}
@@ -59,7 +58,7 @@ export default function App() {
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/_ping" element={<div style={{ padding: 16 }}>pong</div>} />
 
-          {/* User dashboard (jen role 'user') */}
+          {/* User dashboard */}
           <Route
             path="/user/dashboard"
             element={
@@ -71,7 +70,7 @@ export default function App() {
             }
           />
 
-          {/* Admin dashboard (jen role 'admin') */}
+          {/* Admin dashboard */}
           <Route
             path="/admin/dashboard"
             element={
@@ -83,7 +82,7 @@ export default function App() {
             }
           />
 
-          {/* Lékárny – obě role (layout se zvolí podle role) */}
+          {/* Lékárny – obě role */}
           <Route
             path="/pharmacy/report"
             element={
@@ -106,7 +105,6 @@ export default function App() {
           />
 
           {/* Úkoly */}
-          {/* User checklist (povoleno oběma rolím; použije správný layout) */}
           <Route
             path="/tasks"
             element={
@@ -117,7 +115,6 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-          {/* Admin správa úkolů */}
           <Route
             path="/admin/tasks"
             element={
@@ -129,7 +126,7 @@ export default function App() {
             }
           />
 
-          {/* Profil – obě role */}
+          {/* Profil */}
           <Route
             path="/profile"
             element={
@@ -140,9 +137,20 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-          {/* Aliasy na profil */}
           <Route path="/user/profile" element={<Navigate to="/profile" replace />} />
           <Route path="/admin/profile" element={<Navigate to="/profile" replace />} />
+
+          {/* Upload exportů */}
+          <Route
+            path="/upload"
+            element={
+              <ProtectedRoute roles={["user", "admin"]}>
+                <RoleLayout>
+                  <UploadPage />
+                </RoleLayout>
+              </ProtectedRoute>
+            }
+          />
 
           {/* Admin: Uživatelé */}
           <Route

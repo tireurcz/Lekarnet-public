@@ -9,6 +9,7 @@ import {
   Search,
   Bell,
   FileText,
+  FileUp,
   Boxes,
   User as UserIcon,
   CheckSquare,
@@ -102,6 +103,7 @@ export function UserDashboardLayout({ children }) {
           label="Úkoly"
           rightSlot={<TasksBadge />}
         />
+        <NavItem to="/upload" icon={FileUp} label="Nahrát exporty" />
         <NavItem to="/pharmacy/report" icon={FileText} label="Report pro lékárny (PDF)" />
         <NavItem to="/pharmacy/inventory" icon={Boxes} label="Sklad / návrhy přesunu" />
 
@@ -132,6 +134,7 @@ export function AdminDashboardLayout({ children }) {
           label="Úkoly (správa)"
           rightSlot={<TasksBadge />}
         />
+        <NavItem to="/upload" icon={FileUp} label="Nahrát exporty" />
         <NavItem to="/pharmacy/report" icon={FileText} label="Report pro lékárny (PDF)" />
         <NavItem to="/pharmacy/inventory" icon={Boxes} label="Sklad / návrhy přesunu" />
 

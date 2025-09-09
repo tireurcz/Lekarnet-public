@@ -64,6 +64,10 @@ app.use("/api/users", userRoutes);
 // ⬇️ NOVÉ: Úkoly (to-do pro pobočky)
 app.use("/api/tasks", tasksRoutes);
 
+app.use("/api/upload", require("./routes/upload"));
+
+
+
 // --- Start serveru po připojení k DB ---
 if (!process.env.MONGO_URI) {
   console.error("❌ MONGO_URI není definované v .env");
